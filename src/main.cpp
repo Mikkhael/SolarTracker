@@ -14,13 +14,13 @@ void setup()
     delay(100);
 
     preferanceEntries.load();
-    network.begin();
 
+    network.begin();
     if(network.isConnected()){
         network.printFullConnectionStatus();
     }
     if(!MDNS.begin("solar")){
-        logln("MDNS failed to start!");
+        logln("[ERROR] MDNS failed to start!!");
     };
 
     TelnetPrint.begin();

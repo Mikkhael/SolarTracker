@@ -26,6 +26,60 @@ struct PreferanceEntries{
         return true;
     }
 
+    String getPrefsString(){
+        String res;
+        for(int i=0; i<usedEntries; i++){
+            if(i > 0) res += ',';
+            res += names[i];
+            res += '|';
+            switch(types[i]){
+                case Type::String:  res += "STR|"; res += *(reinterpret_cast<String*>     (dests[i])); break;
+                case Type::U8:      res += "U8|";  res += *(reinterpret_cast<uint8_t*>    (dests[i])); break;
+                case Type::U32:     res += "U32|"; res += *(reinterpret_cast<uint32_t*>   (dests[i])); break;
+            }
+        }
+        return res;
+    }
+
+    void updateFromString(String str){
+        int stage = 0;
+        String name = "";
+        String value = "";
+        for(size_t i = 0; i<=str.length(); i++){
+            char c = str[i];
+            if(stage == 0){
+                if(c == '|') stage = 1;
+                else         name += c;
+            }else if(stage == 1){
+                if(c == '|') stage = 2;
+            }else if(stage == 2){
+                if(c != ',' && c != '\0') {
+                    value += c;
+                    continue;
+                }
+                stage = 0;
+                int e = 0;
+                for(e = 0; e<usedEntries; e++){
+                    if(names[e] == name) break;
+                }
+                if(e == usedEntries){
+                    logln("Prefs Upload: name '%s' not found", name.c_str());
+                    name = "";
+                    value = "";
+                    continue;
+                }
+                logln("Updating name '%s' of type %d with value %s (%d)", names[e].c_str(), types[e], value.c_str(), value.toInt());
+                switch(types[e]){
+                    case Type::String:  *(reinterpret_cast<String*>   (dests[e])) = value;          break;
+                    case Type::U8:      *(reinterpret_cast<uint8_t*>  (dests[e])) = value.toInt();  break;
+                    case Type::U32:     *(reinterpret_cast<uint32_t*> (dests[e])) = value.toInt();  break;
+                }
+                name = "";
+                value = "";
+            }
+        }
+    }
+
     bool load(){
         bool res = preferances.begin(Namespace, false);
         auto freeEntries = preferances.freeEntries();

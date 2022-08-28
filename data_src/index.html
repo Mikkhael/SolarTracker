@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Tracker</title>
+
+    <style>
+        body{
+            padding: 0px;
+            margin: 0px;
+        }
+        body *{
+            box-sizing: border-box;
+        }
+        #wsstate{
+            height: 2px;
+            width: 100%;
+            background-color: red;
+        }
+        #wsstate.on{
+            background-color: green;
+        }
+    </style>
+</head>
+<body>
+
+<main>
+    <div id="wsstate"></div>
+    <section id="advanced">
+        <h3>Preferances</h3>
+        <table id="prefs">
+
+        </table>
+        <button onclick="prefs_download()">Download</button>
+        <button onclick="prefs_upload()">Upload</button>
+        <button onclick="prefs_load()">Load</button>
+        <button onclick="prefs_save()">Save</button>
+        <h3>Commands</h3>
+        <input type="text" id="cmd">
+        <button onclick="cmd_execute(document.getElementById('cmd').value)">Execute</button>
+    </section>
+    <section>
+        <h2>Witaj w Solar Trackerze! Żółć ęąśń</h2>
+        <button onclick="toggle_advanced()">Opcje Zaawansowane</button>
+    </section>
+</main>
+<script>
+
+    adv = 1;
+    params = new URLSearchParams(location.search);
+    if(params.get("adv") != '1'){
+        document.getElementById('advanced').style.display = "none";
+        adv = 0;
+    }
+
+    prefs_elem = document.getElementById("prefs");
+    wsstate_elem = document.getElementById("wsstate");
+
+    wsurl = params.get("wsurl") || 'ws://' + location.hostname + ':81';
+    ws = new WebSocket(wsurl);
+
+    ws.onopen = e => {
+        console.log("WS opened");
+        wsstate_elem.className = 'on';
+    }
+    ws.onerror = e => {
+        console.log("WS error", e);
+        wsstate_elem.className = '';
+    }
+    ws.onclose = "close", e => {
+        console.log("WS closed");
+        wsstate_elem.className = '';
+    }
+    ws.onmessage = e => {
+        console.log("WS message", e.data);
+        if(e.data[0] == 'd'){
+            populate_prefs(decode_prefs(e.data.slice(1)));
+        }
+    }
+    
+
+    function decode_prefs(str){
+        return str.split(',').map(x => x.split('|'));
+    }
+    function encode_prefs(p){
+        return p.map(x => x.join("|")).join(',');
+    }
+    function populate_prefs(p){
+        prefs_elem.innerHTML = p.map(x => '<tr>' + x.map(xx => '<td><input value="'+xx+'"/></td>').join('') + '</tr>').join('');
+    }
+    function extract_prefs(){
+        return Array.from(prefs_elem.rows).map(c => Array.from(c.children).map(d => d.firstChild.value).join('|')).join(',');
+    }
+
+    // WS protocol
+    // d - download prefs
+    // u - upload prefs
+    // c - cmd
+
+    function prefs_download(){
+        ws.send('d');
+    }
+    function prefs_upload(){
+        ws.send('u' + extract_prefs());
+    }
+    function cmd_execute(cmd){
+        ws.send('c'+cmd);
+    }
+    function prefs_load(){
+        cmd_execute("cfgload")
+    }
+    function prefs_save(){
+        cmd_execute("cfgsave")
+    }
+
+    function toggle_advanced(){
+        adv = (1-adv);
+        params.set("adv", adv);
+        location.search = params;
+    }
+</script>
+</body>
+</html>
