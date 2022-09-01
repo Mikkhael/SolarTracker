@@ -8,7 +8,7 @@ struct PreferanceEntries{
     enum class Type {String, U8, U32};
     static constexpr char Namespace[6] = "solar";
     static constexpr int TrustedAPsCount = 3;
-    static constexpr int MaxEntriesCount = TrustedAPsCount*2 + 2;
+    static constexpr int MaxEntriesCount = TrustedAPsCount*2 + 15;
     String names[MaxEntriesCount];
     Type   types[MaxEntriesCount];
     void*  dests[MaxEntriesCount];
@@ -155,6 +155,23 @@ struct Config{
     String SSIDs[TrustedAPsCount];
     String PASSs[TrustedAPsCount];
     uint32_t wifiConnectionTimeout = 5000;
+    uint32_t controlResistorValue    = 40000; // Ohm
+    uint32_t controlTriggerDiff      = 20000; // Ohm
+    uint32_t controlMaxExtensionTime = 1000; // ms
+    uint32_t controlCalibrationTime  = 2000; // ms
+    uint32_t controlPWMFrequency     = 40000;// Hz
+    uint8_t  controlPWMDutyCycle     = 25;   // 1/256
+    uint8_t  controlInverted         = 0;
+    uint8_t  startWithManualControl  = 1;
+
+    uint8_t  pinEnA = 13;
+    uint8_t  pinIA1 = 12;
+    uint8_t  pinIA2 = 14;
+
+    
+    uint8_t  pinSensH1 = 34;
+    uint8_t  pinSensH2 = 35;
+
     uint8_t  test = 0;
 
 
@@ -165,6 +182,22 @@ struct Config{
             preferanceEntries.addEntry(String("pass") + i, PreferanceEntries::Type::String, &PASSs[i]);
         }
         preferanceEntries.addEntry("wifiCTO",    PreferanceEntries::Type::U32,  &wifiConnectionTimeout);
+        preferanceEntries.addEntry("res",        PreferanceEntries::Type::U32,  &controlResistorValue);
+        preferanceEntries.addEntry("trg",        PreferanceEntries::Type::U32,  &controlTriggerDiff);
+        preferanceEntries.addEntry("maxe",       PreferanceEntries::Type::U32,  &controlMaxExtensionTime);
+        preferanceEntries.addEntry("cal",        PreferanceEntries::Type::U32,  &controlCalibrationTime);
+        preferanceEntries.addEntry("frq",        PreferanceEntries::Type::U32,  &controlPWMFrequency);
+        preferanceEntries.addEntry("pwm",        PreferanceEntries::Type::U8,   &controlPWMDutyCycle);
+        preferanceEntries.addEntry("inv",        PreferanceEntries::Type::U8,   &controlInverted);
+        preferanceEntries.addEntry("man",        PreferanceEntries::Type::U8,   &startWithManualControl);
+
+        preferanceEntries.addEntry("ena",        PreferanceEntries::Type::U8,   &pinEnA);
+        preferanceEntries.addEntry("ia1",        PreferanceEntries::Type::U8,   &pinIA1);
+        preferanceEntries.addEntry("ia2",        PreferanceEntries::Type::U8,   &pinIA2);
+        preferanceEntries.addEntry("sh1",        PreferanceEntries::Type::U8,   &pinSensH1);
+        preferanceEntries.addEntry("sh2",        PreferanceEntries::Type::U8,   &pinSensH2);
+
+
         preferanceEntries.addEntry("test",       PreferanceEntries::Type::U8,   &test);
     }
 
@@ -175,6 +208,23 @@ struct Config{
             logln("AP%d: SSID:[%s], PASS:[%s]", i, SSIDs[i].c_str(), PASSs[i].c_str());
         }
         logln("WiFi Connection Timeout: %u", wifiConnectionTimeout);
+        logln("CONTROL:");
+        logln("  Res (Ohm): %u", controlResistorValue);
+        logln("  Trigger Diff (Ohm): %u", controlTriggerDiff);
+        logln("  Max Extension Time (ms): %u", controlMaxExtensionTime);
+        logln("  Calibration Time (ms): %u", controlCalibrationTime);
+        logln("  PWM Freq (Hz): %u", controlPWMFrequency);
+        logln("  PWM Duty (%): %.2f", controlPWMDutyCycle / 256.f);
+        logln("  Inverted: %u", controlInverted);
+        logln("  Start Manual: %u", startWithManualControl);
+        logln("PINS:");
+        logln("  EnA: %u", pinEnA);
+        logln("  IA1: %u", pinIA1);
+        logln("  IA2: %u", pinIA2);
+        logln("  SensH1: %u", pinSensH1);
+        logln("  SensH2: %u", pinSensH2);
+        
+
         logln("test: %u", test);
     }
 

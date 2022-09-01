@@ -15,6 +15,9 @@ void setup()
 
     preferanceEntries.load();
 
+    hmotor.initAsH();
+    controller.manualControl = config.startWithManualControl; // FOR TESTS
+
     network.begin();
     if(network.isConnected()){
         network.printFullConnectionStatus();
@@ -51,8 +54,12 @@ void loop()
         }
     }
 
+    controller.loop();
+
     http.handleClient();
     wss.loop();
 
-    delay(200);
+
+
+    //delay(200);
 }

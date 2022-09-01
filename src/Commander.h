@@ -1,5 +1,6 @@
 #pragma once
 #include "Network.h"
+#include "Control.h"
 
 
 struct Commander{
@@ -57,6 +58,22 @@ struct Commander{
         }
         else if(args[0] == "wifistatus"){
             network.printFullConnectionStatus();
+        }
+        else if(args[0] == "hmotor"){
+            int state_int = args[1].toInt();
+            logln("Setting H Motor state to %d (%s)", state_int, motorStateNames[state_int]);
+            controller.manualControl = true;
+            hmotor.setState(static_cast<Motor::State>(state_int));
+        }
+        else if(args[0] == "auto"){
+            logln("Reasuming automatic control.");
+            controller.manualControl = false;
+        }
+        else if(args[0] == "ctrlstate"){
+            controller.printState();
+        }
+        else if(args[0] == "reinit"){
+            hmotor.initAsH();
         }
         else if(args[0] == "reboot"){
             ESP.restart();
