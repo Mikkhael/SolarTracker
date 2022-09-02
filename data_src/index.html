@@ -43,6 +43,24 @@
     </section>
     <section>
         <h2>Witaj w Solar Trackerze! Żółć ęąśń</h2>
+        <fieldset>
+            <legend>Stan Osi Poziomej</legend>
+            <button onclick="cmd_execute('hmotor 0')">Swobodny</button>
+            <button onclick="cmd_execute('hmotor 1')">Hamowanie Szybkie</button>
+            <button onclick="cmd_execute('hmotor 2')">Hamowanie</button>
+            <button onclick="cmd_execute('hmotor 3')">Ruch &lt;--</button>
+            <button onclick="cmd_execute('hmotor 4')">Ruch --&gt;</button>
+            <button onclick="cmd_execute('hmotor 5')">Kalibracja</button>
+            
+            <br>Stan Aktualny: <span id="s_hst"></span>
+            <br>Kalibracja: <span id="s_hcal"></span>
+            <br>Pozycja: <span id="s_hpos"></span> %
+            <br>Czujnik Lewy: <span id="s_hs1"></span> Omów
+            <br>Czujnik Prawy: <span id="s_hs2"></span> Omów
+        </fieldset>
+        <button onclick="cmd_execute('auto')">Włącz Tryb Automatyczny</button>
+        <br>Sterowanie Manualne: <span id="s_man"></span>
+        <p></p>
         <button onclick="toggle_advanced()">Opcje Zaawansowane</button>
     </section>
 </main>
@@ -77,6 +95,10 @@
         console.log("WS message", e.data);
         if(e.data[0] == 'd'){
             populate_prefs(decode_prefs(e.data.slice(1)));
+        }else if(e.data[0] == 'r'){
+            state = decode_state(e.data.slice(1));
+            populate_state(state);
+            //console.log("Decoded state: ", state);
         }
     }
     
@@ -94,10 +116,36 @@
         return Array.from(prefs_elem.rows).map(c => Array.from(c.children).map(d => d.firstChild.value).join('|')).join(',');
     }
 
+    function decode_state(str){
+        let res = {};
+        let ts = str.split('|');
+        res.manual = ts[1] == '1';
+        res.hstate = ts[2];
+        res.hcal   = ts[3] == '1';
+        res.hmax   = +ts[4];
+        res.hpos   = +ts[5];
+        res.hsens1 = +ts[6];
+        res.hsens2 = +ts[7];
+
+        return res;
+    }
+    E = i => document.getElementById(i);
+    function populate_state(state){
+        E('s_hst').innerHTML = state.hstate;
+        E('s_hcal').innerHTML = state.hcal ? "Tak" : "Nie";
+        E('s_hpos').innerHTML = state.hpos / state.hmax * 100;
+        E('s_hs1').innerHTML = state.hsens1;
+        E('s_hs2').innerHTML = state.hsens2;
+
+        E('s_man').innerHTML = state.manual ? "Tak" : "Nie";
+    }
+
     // WS protocol
     // d - download prefs
     // u - upload prefs
     // c - cmd
+    // r - controlls state
+
 
     function prefs_download(){
         ws.send('d');
@@ -113,6 +161,9 @@
     }
     function prefs_save(){
         cmd_execute("cfgsave")
+    }
+    function request_state(){
+        ws.send('r');
     }
 
     function toggle_advanced(){

@@ -214,7 +214,7 @@ struct Config{
         logln("  Max Extension Time (ms): %u", controlMaxExtensionTime);
         logln("  Calibration Time (ms): %u", controlCalibrationTime);
         logln("  PWM Freq (Hz): %u", controlPWMFrequency);
-        logln("  PWM Duty (%): %.2f", controlPWMDutyCycle / 256.f);
+        logln("  PWM Duty (%%): %.2f", controlPWMDutyCycle / 2.56f);
         logln("  Inverted: %u", controlInverted);
         logln("  Start Manual: %u", startWithManualControl);
         logln("PINS:");

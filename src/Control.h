@@ -16,10 +16,20 @@ struct Motor{
     int  pinEnableValue = 0;
 
     void init(int pinEnable, int pinIn1, int pinIn2, int pwmch){
+
+        if(this->pinEnable != 0){
+            ledcDetachPin(this->pinEnable);
+        }
+
         this->pinEnable = pinEnable;
         this->pinIn1 = pinIn1;
         this->pinIn2 = pinIn2;
         this->pwmch = pwmch;
+
+        ledcAttachPin(this->pinEnable, this->pwmch);
+        ledcChangeFrequency(pwmch, config.controlPWMFrequency, 8);
+        pinMode(this->pinIn1, OUTPUT);
+        pinMode(this->pinIn2, OUTPUT);
         
         setState(State::Free);
     }

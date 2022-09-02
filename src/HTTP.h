@@ -6,6 +6,8 @@
 #include <Update.h>
 #include "html.h"
 #include "secrets.h"
+#include "Commander.h"
+#include "Config.h"
 
 
 static const char* update_html = "<form method='POST' action='/upload' enctype='multipart/form-data'><input type='file' name='update'><input type='checkbox' name='s' value='1'>SPIFFS<input type='submit' value='Update'></form>"; 
@@ -114,5 +116,41 @@ struct WSS : public WebSocketsServer{
         });
     }
 };
+
+
+
+void WSS::handle(uint8_t num, WStype_t type, uint8_t * payload, size_t length){
+
+    if(length == 1 && payload[0] == 't'){ 
+        this->sendTXT(num, "HELLO SOCKET WORLD!");
+    }else if(length == 1 && payload[0] == 'd'){
+        String p = String("d") + preferanceEntries.getPrefsString();
+        logln("[WSS] Downloading Config string: '%s'", p.c_str());
+        this->sendTXT(num, p);
+    }else if(length > 1 && payload[0] == 'u'){
+        String s = String(payload+1, length-1);
+        logln("[WSS] Uploading Config from string: '%s'", s.c_str());
+        preferanceEntries.updateFromString(s);
+    }else if(length > 1 && payload[0] == 'c'){
+        String s = String(payload+1, length -1);
+        logln("[WSS] Executing remote command '%s'", s);
+        commander.parseAndExecute(s);
+    }else if(length == 1 && payload[0] == 'r'){
+        String p = "r";
+
+        (p += '|') += controller.manualControl;
+        (p += '|') += motorStateNames[static_cast<int>(hmotor.accualState)];
+        (p += '|') += hmotor.calibrated;
+        (p += '|') += config.controlMaxExtensionTime;
+        (p += '|') += hmotor.position;
+        (p += '|') += controller.val_h1;
+        (p += '|') += controller.val_h2;
+
+        this->sendTXT(num, p);
+    }else{
+        logln("[WSS] [%d] Unrecognized Request Format (ID: %u, Len: %u).", num, length > 0 ? payload[0] : 0, length);
+    }
+
+}
 
 inline WSS wss;
