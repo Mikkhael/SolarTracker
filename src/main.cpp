@@ -6,7 +6,24 @@
 #include "Commander.h"
 #include "HTTP.h"
 
+#include "Time.h"
+
 WiFiMulti wifiMutli;
+
+
+unsigned long long lastTimer = 0;
+
+static bool PROFILE(char id, unsigned long long limit = 100){
+    int diff = millis() - lastTimer;
+    if(diff >= limit){
+        logln("PROFILE %c %d", id, diff);
+        lastTimer = millis();
+        return false;
+    }
+    lastTimer = millis();
+    return true;
+}
+
 
 void setup()
 {
@@ -16,7 +33,6 @@ void setup()
     preferanceEntries.load();
 
     hmotor.initAsH();
-    controller.manualControl = config.startWithManualControl; // FOR TESTS
 
     network.begin();
     if(network.isConnected()){
@@ -29,10 +45,18 @@ void setup()
     TelnetPrint.begin();
     http.begin();
     wss.begin();
+
+    ntc.setUpdateInterval(config.ntcUpdateInterval);
+    ntc.begin();
+
+    lastTimer = millis();
 }
 
+bool firstNtcSet = false;
 void loop()
 {
+
+    PROFILE('0');
     //config.print();
 
     // Reading commands from Serial
@@ -42,6 +66,8 @@ void loop()
             Serial.read();
         commander.parseAndExecute(cmd);
     }
+    
+    PROFILE('c');
     // Reading commands from Telnet
     while(true){
         auto telnetClient = TelnetPrint.available();
@@ -53,11 +79,23 @@ void loop()
             commander.parseAndExecute(cmd);
         }
     }
+    PROFILE('t');
+
+    if(controller.isSafeToInterrupt()){
+        if(ntc.update() && !firstNtcSet){
+            logln("Setting time from NTC to %d (%s)", ntc.getEpochTime(), ntc.getFormattedTime().c_str());
+            firstNtcSet = true;
+        }
+    }
+    PROFILE('n');
 
     controller.loop();
+    PROFILE('C');
 
     http.handleClient();
+    PROFILE('h');
     wss.loop();
+    PROFILE('w');
 
 
 

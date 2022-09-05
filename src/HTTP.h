@@ -138,13 +138,19 @@ void WSS::handle(uint8_t num, WStype_t type, uint8_t * payload, size_t length){
     }else if(length == 1 && payload[0] == 'r'){
         String p = "r";
 
-        (p += '|') += controller.manualControl;
-        (p += '|') += motorStateNames[static_cast<int>(hmotor.accualState)];
+        (p += '|') += static_cast<int>(controller.mode);
+        (p += '|') += static_cast<int>(hmotor.accualState);
         (p += '|') += hmotor.calibrated;
         (p += '|') += config.controlMaxExtensionTime;
         (p += '|') += hmotor.position;
+        (p += '|') += controller.targetPositionH;
+        (p += '|') += controller.targetPositionH_direction;
         (p += '|') += controller.val_h1;
         (p += '|') += controller.val_h2;
+        (p += '|') += controller.sunTargetAltitude;
+        (p += '|') += controller.sunTargetAzimuth;
+        (p += '|') += controller.sunTargetPositonH;
+        (p += '|') += ntc.getEpochTime();
 
         this->sendTXT(num, p);
     }else{

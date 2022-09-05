@@ -62,18 +62,49 @@ struct Commander{
         else if(args[0] == "hmotor"){
             int state_int = args[1].toInt();
             logln("Setting H Motor state to %d (%s)", state_int, motorStateNames[state_int]);
-            controller.manualControl = true;
+            controller.setMode(Controller::Mode::Manual);
             hmotor.setState(static_cast<Motor::State>(state_int));
         }
-        else if(args[0] == "auto"){
-            logln("Reasuming automatic control.");
-            controller.manualControl = false;
+        else if(args[0] == "gotopos"){
+            int posh = args[1].toInt();
+            float poshp = float(posh) / config.controlMaxExtensionTime * 100;
+            logln("Setting H Motor Target Position to %d (%.3f %%)", posh, poshp);
+            controller.startTask_MoveToPosition(posh);
+            controller.setMode(Controller::Mode::CustomPosition);
         }
-        else if(args[0] == "ctrlstate"){
+        else if(args[0] == "gotoposp"){
+            float poshp = args[1].toFloat();
+            int posh = config.controlMaxExtensionTime * poshp / 100;
+            logln("Setting H Motor Target Position to %d (%.3f %%)", posh, poshp);
+            controller.startTask_MoveToPosition(posh);
+            controller.setMode(Controller::Mode::CustomPosition);
+        }
+        else if(args[0] == "gotoazim"){
+            float azim = args[1].toFloat();
+            auto posh = controller.getPositionFromAzimuth(azim);
+            logln("Setting H Motor Target Azimuth to %f (pos = %d)", azim, posh);
+            controller.startTask_MoveToPosition(posh);
+            controller.setMode(Controller::Mode::CustomPosition);
+        }
+        else if(args[0] == "ctrlsensor"){
+            logln("Reasuming automatic control - Light Sensors.");
+            controller.setMode(Controller::Mode::LightSensors);
+        }
+        else if(args[0] == "ctrlsun"){
+            logln("Reasuming automatic control - Sun Position.");
+            controller.setMode(Controller::Mode::SunPosition);
+        }
+        else if(args[0] == "ctrlstatus"){
             controller.printState();
+        }
+        else if(args[0] == "ctrlforcecalib"){
+            logln("Forcing Calibration of motors.");
+            hmotor.position = 0;
+            hmotor.calibrated = true;
         }
         else if(args[0] == "reinit"){
             hmotor.initAsH();
+            ntc.setUpdateInterval(config.ntcUpdateInterval);
         }
         else if(args[0] == "reboot"){
             ESP.restart();

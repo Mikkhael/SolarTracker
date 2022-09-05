@@ -1,5 +1,7 @@
 #pragma once
 #include "Config.h"
+#include "Time.h"
+#include "Astronomy.h"
 
 
 inline const char* motorStateNames[] = {"Free", "FailStop", "SoftStop", "MoveIn", "MoveOut", "Calibration"};
@@ -78,6 +80,9 @@ struct Motor{
         ledcWrite(pwmch, pinEnableValue);
     }
 
+    int getDirection(){
+        return state == State::MoveIn ? -1 : (state == State::MoveOut ? 1 : 0);
+    }
     void setDirection(int direction, bool fastStop = false){
         setState(direction == 0 ? 
             (fastStop ? State::FastStop : State::SoftStop) : 
@@ -125,10 +130,50 @@ struct Motor{
 inline Motor hmotor;
 
 
+template <typename T, size_t N>
+struct Meanator{
+    T data[N];
+
+    T sum = 0;
+    T mean = 0;
+    
+    size_t size = 0;
+    size_t index = 0;
+
+    void add(T val){
+        if(size > 0){
+            sum -= data[index];
+        }
+        data[index] = val;
+        sum += val;
+        if(size < N){
+            size++;
+        }
+        index = (index + 1) % N;
+        mean = sum / size;
+    }
+
+    T get(){
+        return mean;
+    }
+};
+
+static const char* ControllerModeNames[] = {"Manual", "CustomPosition", "LightSensors", "SunPositioin"};
+
 struct Controller{
 
-    bool manualControl = false;
 
+    enum Mode {Manual, CustomPosition, LightSensors, SunPosition} mode = Mode::Manual;
+    void setMode(Mode mode){
+        this->mode = mode;
+        if(mode == Mode::SunPosition){
+            lastSolarUpdate = 0;
+        }
+    }
+
+    // Light Sensors
+    Meanator<int, 10> mean_h1;
+    Meanator<int, 10> mean_h2;
     int raw_h1 = 0;
     int raw_h2 = 0;
     uint32_t val_h1 = 0; // Ohm
@@ -137,8 +182,10 @@ struct Controller{
     int gradient_h = 0;
 
     void readSensors(){
-        raw_h1 = analogRead(config.pinSensH1);
-        raw_h2 = analogRead(config.pinSensH2);
+        mean_h1.add( analogRead(config.pinSensH1) );
+        mean_h2.add( analogRead(config.pinSensH2) );
+        raw_h1 = mean_h1.get();
+        raw_h2 = mean_h2.get();
         val_h1 = (config.controlResistorValue * raw_h1) / (4096 - raw_h1);
         val_h2 = (config.controlResistorValue * raw_h2) / (4096 - raw_h2);
         
@@ -159,27 +206,110 @@ struct Controller{
         }
     }
 
+    bool isSafeToInterrupt(){
+        return hmotor.state == hmotor.accualState &&
+               hmotor.state != Motor::State::MoveOut;
+    }
+
+    // Astronomy Controlls
+    uint64_t lastSolarUpdate = 0;
+    double  sunTargetAzimuth  = 0;
+    double  sunTargetAltitude = 0;
+    uint64_t sunTargetPositonH = 0;
+    bool sunPositionUpdated = false;
+
+    uint64_t getPositionFromAzimuth(double azimuth){
+        double azimuth_min = config.controlMinAzimuth / 1000.f;
+        double azimuth_len = config.controlLenAzimuth / 1000.f;
+        auto azimuth_delta = getAzimuthDelta(azimuth, azimuth_min, azimuth_len);
+
+        //TODO Measure And Improve
+        return (azimuth_delta / azimuth_len) * config.controlMaxExtensionTime;
+    }
+
+    bool updateCurrentSunPos(){
+        if(!ntc.isTimeSet()){
+            return false;
+        }
+        if(lastSolarUpdate != 0 && ntc.getEpochTime() - lastSolarUpdate < config.controlSunPosUpdateInterval){
+            return false;
+        }
+
+        lastSolarUpdate = ntc.getEpochTime();
+        auto pos = getSunPosition(lastSolarUpdate, config.coordW / 1000.f, config.coordN / 1000.f);
+        sunTargetAltitude = pos.altitude;
+        sunTargetAzimuth  = pos.azimuth;
+        sunTargetPositonH = getPositionFromAzimuth(sunTargetAzimuth);
+        sunPositionUpdated = true;
+        return true;
+    }
+
+
+    uint64_t targetPositionH = 0;
+    int targetPositionH_direction = 0;
+
+    void startTask_MoveToPosition(uint64_t posh){
+        targetPositionH = posh;
+        if(hmotor.position < posh){
+            targetPositionH_direction = 1;
+        }else if(hmotor.position > posh){
+            targetPositionH_direction = -1;
+        }else{
+            targetPositionH_direction = 0;
+        }
+    }
+
+    bool updateMotors_MoveToPosition(){
+        if(      targetPositionH_direction == 1  && hmotor.position >= targetPositionH){
+            targetPositionH_direction = 0;
+        }else if(targetPositionH_direction == -1 && hmotor.position <= targetPositionH){
+            targetPositionH_direction = 0;
+        }
+        hmotor.setDirection(targetPositionH_direction);
+        return targetPositionH_direction == 0;
+    }
+
+    void updateMotors(){
+        hmotor.update();
+    }
+
     void loop(){
         readSensors();
-        if(manualControl){
-            hmotor.update();
-        }else{
+        updateCurrentSunPos();
+
+        if(mode == Mode::Manual){
+            updateMotors();
+        }else if(mode == Mode::CustomPosition){
+            updateMotors_MoveToPosition();
+        }else if(mode == Mode::LightSensors){
             hmotor.setDirection(gradient_h);
+        }else if(mode == Mode::SunPosition){
+            if(sunPositionUpdated){
+                startTask_MoveToPosition(sunTargetPositonH);
+                sunPositionUpdated = false;
+            }
+            updateMotors_MoveToPosition();
         }
     }
 
     void printState(){
-        logln("Manual: %d", manualControl);
+        logln("State: %s", ControllerModeNames[static_cast<int>(mode)]);
         logln("HORIZONTAL");
+        int hmotor_state_int = static_cast<int>(hmotor.state);
+        logln(" Motor State: %d (%s)", hmotor_state_int, motorStateNames[hmotor_state_int]);
+        logln(" Position: %f (%u)", hmotor.getPositionProcentage(), hmotor.position);
+        logln(" Target Position: %u", targetPositionH);
+        logln(" Target Position dir: %u", targetPositionH_direction);
+        logln(" Calibrated: %d", hmotor.calibrated);
+        logln(" LIGHT SENSORS");
         logln("  Sensor 1 Raw: %d", raw_h1);
         logln("  Sensor 2 Raw: %d", raw_h2);
         logln("  Sensor 1 Ohm: %u", val_h1);
         logln("  Sensor 2 Ohm: %u", val_h2);
         logln("  Gradient: %d", gradient_h);
-        logln("  Position: %f (%u)", hmotor.getPositionProcentage(), hmotor.position);
-        logln("  Calibrated: %d", hmotor.calibrated);
-        int hmotor_state_int = static_cast<int>(hmotor.state);
-        logln("  Motor State: %d (%s)", hmotor_state_int, motorStateNames[hmotor_state_int]);
+        logln(" SUN POSITION");
+        logln("  Azimuth: %f", sunTargetAzimuth);
+        logln("  Altitude: %f", sunTargetAltitude);
     }
 
 };

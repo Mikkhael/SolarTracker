@@ -39,28 +39,48 @@
         <button onclick="prefs_save()">Save</button>
         <h3>Commands</h3>
         <input type="text" id="cmd">
-        <button onclick="cmd_execute(document.getElementById('cmd').value)">Execute</button>
+        <button onclick="cmd_execute(E('cmd').value)">Execute</button>
     </section>
     <section>
-        <h2>Witaj w Solar Trackerze! Żółć ęąśń</h2>
+        <h2>Witaj w Solar Trackerze!</h2>
+        <p>Czas: <span id="s_time">?</span></p>
         <fieldset>
-            <legend>Stan Osi Poziomej</legend>
+            <legend>Sterowanie Automatyczne</legend>
+            <p>Tryb Sterowania: <span id="s_cmode">?</span></p>
+            <p><button onclick="cmd_execute('ctrlsun')">Włącz Tryb Automatyczny (pozycja słońca)</button></p>
+        </fieldset>
+        <fieldset>
+            <legend>Pozycja Słońca</legend>
+            <p>Azymut: <span id="s_azim">?</span></p>
+            <p>Wysokość: <span id="s_alti">?</span></p>
+            <p>Docelowa Pozycja Osi Poziomej: <span id="s_shtpos">?</span>%</p>
+        </fieldset>
+        <fieldset>
+            <legend>Oś Pozioma</legend>
+            <p>Wymuś Stan:</p>
             <button onclick="cmd_execute('hmotor 0')">Swobodny</button>
             <button onclick="cmd_execute('hmotor 1')">Hamowanie Szybkie</button>
             <button onclick="cmd_execute('hmotor 2')">Hamowanie</button>
+            <br>
             <button onclick="cmd_execute('hmotor 3')">Ruch &lt;--</button>
             <button onclick="cmd_execute('hmotor 4')">Ruch --&gt;</button>
+            <br>
             <button onclick="cmd_execute('hmotor 5')">Kalibracja</button>
-            
-            <br>Stan Aktualny: <span id="s_hst"></span>
-            <br>Kalibracja: <span id="s_hcal"></span>
-            <br>Pozycja: <span id="s_hpos"></span> %
-            <br>Czujnik Lewy: <span id="s_hs1"></span> Omów
-            <br>Czujnik Prawy: <span id="s_hs2"></span> Omów
+            <p>
+                <input id="in_hpos"/> 
+                <button onclick="cmd_execute('gotoposp '+E('in_hpos').value)">Wymuś Pozycję</button>
+            </p>
+            <p>
+                <input id="in_hazim"/>
+                <button onclick="cmd_execute('gotoazim '+E('in_hazim').value)">Wymuś Azymut</button>
+            </p>
+            <br>
+            <p>Stan: <span id="s_hstate">?</span></p>
+            <p>Zkalibrowana: <span id="s_hcal">Nie</span></p>
+            <p>Pozycja: <span id="s_hpos">?</span>%</p>
+            <p>Azymut: <span id="s_hazim">?</span></p>
         </fieldset>
-        <button onclick="cmd_execute('auto')">Włącz Tryb Automatyczny</button>
-        <br>Sterowanie Manualne: <span id="s_man"></span>
-        <p></p>
+        <br>
         <button onclick="toggle_advanced()">Opcje Zaawansowane</button>
     </section>
 </main>
@@ -79,17 +99,23 @@
     wsurl = params.get("wsurl") || 'ws://' + location.hostname + ':81';
     ws = new WebSocket(wsurl);
 
+    wsinterval_val = params.get("wsinterval") || 200;
+    wsinterval = null;
+
     ws.onopen = e => {
         console.log("WS opened");
         wsstate_elem.className = 'on';
+        wsinterval = setInterval(request_state, wsinterval_val);
     }
     ws.onerror = e => {
         console.log("WS error", e);
         wsstate_elem.className = '';
+        clearInterval(wsinterval);
     }
     ws.onclose = "close", e => {
         console.log("WS closed");
         wsstate_elem.className = '';
+        clearInterval(wsinterval);
     }
     ws.onmessage = e => {
         console.log("WS message", e.data);
@@ -119,25 +145,44 @@
     function decode_state(str){
         let res = {};
         let ts = str.split('|');
-        res.manual = ts[1] == '1';
-        res.hstate = ts[2];
+        
+        res.cmode = +ts[1];
+        res.hstate = +ts[2];
         res.hcal   = ts[3] == '1';
         res.hmax   = +ts[4];
         res.hpos   = +ts[5];
-        res.hsens1 = +ts[6];
-        res.hsens2 = +ts[7];
+        res.htpos  = +ts[6];
+        res.htposd = +ts[7];
+        res.hsens1 = +ts[8];
+        res.hsens2 = +ts[9];
+        res.alti   = +ts[10];
+        res.azim   = +ts[11];
+        res.shtpos = +ts[12];
+        res.time   = +ts[13];
 
         return res;
     }
     E = i => document.getElementById(i);
-    function populate_state(state){
-        E('s_hst').innerHTML = state.hstate;
-        E('s_hcal').innerHTML = state.hcal ? "Tak" : "Nie";
-        E('s_hpos').innerHTML = state.hpos / state.hmax * 100;
-        E('s_hs1').innerHTML = state.hsens1;
-        E('s_hs2').innerHTML = state.hsens2;
 
-        E('s_man').innerHTML = state.manual ? "Tak" : "Nie";
+    cmode_names = ["Manualny", "Pozycjonowanie", "Automatycznye (czujniki)", "Automatyczny (pozycja słońca)" ]
+    state_names = ["Swobodny", "Hamowanie Szybkie", "Hamowanie", "Ruch w lewo", "Ruch w prawo", "Kalibracja"];
+
+    function populate_state(s){
+        let S = (n, v) => E('s_' + n).innerHTML = v;
+
+        S('time', new Date(s.time * 1000));
+        S('cmode', cmode_names[s.cmode]);
+
+
+        S('azim', s.azim.toFixed(3));
+        S('alti', s.alti.toFixed(3));
+        S('shtpos', (s.shtpos / s.hmax * 100).toFixed(3) );
+
+        S('hstate', state_names[s.hstate]);
+        S('hcal', s.hcal ? "Tak" : "Nie");
+        S('hpos', (s.hpos / s.hmax * 100).toFixed(3) );
+
+
     }
 
     // WS protocol
