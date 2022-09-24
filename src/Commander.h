@@ -104,6 +104,7 @@ struct Commander{
         }
         else if(args[0] == "reinit"){
             hmotor.initAsH();
+            positionCalculatorH.initAsH();
             ntc.setUpdateInterval(config.ntcUpdateInterval);
         }
         else if(args[0] == "reboot"){

@@ -163,6 +163,11 @@ struct Config{
     static constexpr int TrustedAPsCount = PreferanceEntries::TrustedAPsCount;
     String SSIDs[TrustedAPsCount];
     String PASSs[TrustedAPsCount];
+    uint32_t dimHRadius         = 200; // mm
+    uint32_t dimHAnchorDistance = 600; // mm
+    uint32_t dimHMinLength      = 420; // mm
+    uint32_t dimHMaxLength      = 720; // mm
+
     uint32_t wifiConnectionTimeout = 5000;
     uint32_t ntcUpdateInterval = 30*60*1000;
     uint32_t controlResistorValue    = 40000; // Ohm
@@ -196,6 +201,12 @@ struct Config{
             preferanceEntries.addEntry(String("ssid") + i, PreferanceEntries::Type::String, &SSIDs[i]);
             preferanceEntries.addEntry(String("pass") + i, PreferanceEntries::Type::String, &PASSs[i]);
         }
+
+        preferanceEntries.addEntry("dhr",        PreferanceEntries::Type::U32,  &dimHRadius);
+        preferanceEntries.addEntry("dhanc",      PreferanceEntries::Type::U32,  &dimHAnchorDistance);
+        preferanceEntries.addEntry("dhdmin",     PreferanceEntries::Type::U32,  &dimHMinLength);
+        preferanceEntries.addEntry("dhdmax",     PreferanceEntries::Type::U32,  &dimHMaxLength);
+
         preferanceEntries.addEntry("wifiCTO",    PreferanceEntries::Type::U32,  &wifiConnectionTimeout);
         preferanceEntries.addEntry("ntcint",     PreferanceEntries::Type::U32,  &ntcUpdateInterval);
 
@@ -204,7 +215,7 @@ struct Config{
 
         preferanceEntries.addEntry("sunint",      PreferanceEntries::Type::U32,  &controlSunPosUpdateInterval);
         preferanceEntries.addEntry("minA",        PreferanceEntries::Type::I32,  &controlMinAzimuth);
-        preferanceEntries.addEntry("maxA",        PreferanceEntries::Type::I32,  &controlLenAzimuth);
+        preferanceEntries.addEntry("lenA",        PreferanceEntries::Type::I32,  &controlLenAzimuth);
 
         preferanceEntries.addEntry("maxe",       PreferanceEntries::Type::U32,  &controlMaxExtensionTime);
         preferanceEntries.addEntry("cal",        PreferanceEntries::Type::U32,  &controlCalibrationTime);
@@ -228,13 +239,18 @@ struct Config{
 
     void print(){
         logln("Printing Loaded Configuration: ");
+        logln("NETWORK:");
         
         for(int i=0; i<TrustedAPsCount; i++){
-            logln("AP%d: SSID:[%s], PASS:[%s]", i, SSIDs[i].c_str(), PASSs[i].c_str());
+            logln("  AP%d: SSID:[%s], PASS:[%s]", i, SSIDs[i].c_str(), PASSs[i].c_str());
         }
-        logln("WiFi Connection Timeout: %u", wifiConnectionTimeout);
-        logln("NTC Update Interval: %u", ntcUpdateInterval);
-        logln("Coords: %.3f W, %.3f N", coordW / 1000.f, coordN / 1000.f);
+        logln("  WiFi Connection Timeout: %u", wifiConnectionTimeout);
+        logln("  NTC Update Interval: %u", ntcUpdateInterval);
+        logln("DIMENSIONS HORIZONTAL: ");
+        logln("  Turntable Radius: %umm", dimHRadius);
+        logln("  Anchor Distance from center: %umm", dimHAnchorDistance);
+        logln("  Minimum Accuator Length: %umm", dimHMinLength);
+        logln("  Maximum Accuator Length: %umm", dimHMaxLength);
         logln("CONTROL:");
         logln("  Res (Ohm): %u", controlResistorValue);
         logln("  Trigger Diff (Ohm): %u", controlTriggerDiff);
@@ -247,6 +263,7 @@ struct Config{
         logln("  PWM Duty (%%): %.2f", controlPWMDutyCycle / 2.56f);
         logln("  Inverted: %u", controlInverted);
         logln("  Start Manual: %u", startWithManualControl);
+        logln("  Coords: %.3f W, %.3f N", coordW / 1000.f, coordN / 1000.f);
         logln("PINS:");
         logln("  EnA: %u", pinEnA);
         logln("  IA1: %u", pinIA1);
@@ -255,7 +272,7 @@ struct Config{
         logln("  SensH2: %u", pinSensH2);
         
 
-        logln("test: %u", test);
+        //logln("test: %u", test);
     }
 
     Config(bool autoBind = false){

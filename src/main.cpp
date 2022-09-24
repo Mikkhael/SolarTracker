@@ -8,6 +8,10 @@
 
 #include "Time.h"
 
+void sendLogsToWSS(const char* buf, bool newline){
+    wss.broadcastLogs(buf, newline);
+}
+
 WiFiMulti wifiMutli;
 
 
@@ -33,6 +37,7 @@ void setup()
     preferanceEntries.load();
 
     hmotor.initAsH();
+    positionCalculatorH.initAsH();
 
     network.begin();
     if(network.isConnected()){

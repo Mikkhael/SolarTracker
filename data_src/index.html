@@ -22,6 +22,10 @@
         #wsstate.on{
             background-color: green;
         }
+        #logs{
+            width: 100%;
+            min-height: 9em;
+        }
     </style>
 </head>
 <body>
@@ -37,9 +41,13 @@
         <button onclick="prefs_upload()">Upload</button>
         <button onclick="prefs_load()">Load</button>
         <button onclick="prefs_save()">Save</button>
+        <button onclick="cmd_execute('reinit')">Reinit</button>
         <h3>Commands</h3>
         <input type="text" id="cmd">
         <button onclick="cmd_execute(E('cmd').value)">Execute</button>
+        <h3>Logs</h3>
+        <button onclick="register_logs()">Register</button> <br>
+        <textarea id="logs"></textarea>
     </section>
     <section>
         <h2>Witaj w Solar Trackerze!</h2>
@@ -125,6 +133,8 @@
             state = decode_state(e.data.slice(1));
             populate_state(state);
             //console.log("Decoded state: ", state);
+        }else if(e.data[0] == 'l'){
+            add_logs(e.data.slice(1));
         }
     }
     
@@ -159,10 +169,13 @@
         res.azim   = +ts[11];
         res.shtpos = +ts[12];
         res.time   = +ts[13];
+        res.hazim  = +ts[14];
 
         return res;
     }
-    E = i => document.getElementById(i);
+    function E(i){
+        return document.getElementById(i);
+    }
 
     cmode_names = ["Manualny", "Pozycjonowanie", "Automatycznye (czujniki)", "Automatyczny (pozycja słońca)" ]
     state_names = ["Swobodny", "Hamowanie Szybkie", "Hamowanie", "Ruch w lewo", "Ruch w prawo", "Kalibracja"];
@@ -181,8 +194,14 @@
         S('hstate', state_names[s.hstate]);
         S('hcal', s.hcal ? "Tak" : "Nie");
         S('hpos', (s.hpos / s.hmax * 100).toFixed(3) );
+        S('hazim', s.hazim.toFixed(3) );
 
 
+    }
+
+    function add_logs(content){
+        E('logs').value += content;
+        E('logs').scrollTop = E('logs').scrollHeight;
     }
 
     // WS protocol
@@ -190,6 +209,7 @@
     // u - upload prefs
     // c - cmd
     // r - controlls state
+    // l - logs
 
 
     function prefs_download(){
@@ -210,12 +230,18 @@
     function request_state(){
         ws.send('r');
     }
+    function register_logs(){
+        ws.send('l');
+    }
 
     function toggle_advanced(){
         adv = (1-adv);
         params.set("adv", adv);
         location.search = params;
     }
+
+
+    E('logs').value = "";
 </script>
 </body>
 </html>

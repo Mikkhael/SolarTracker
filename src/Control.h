@@ -158,6 +158,78 @@ struct Meanator{
     }
 };
 
+struct SimplePositionCalculator{
+
+    double r = 0;
+    double d0 = 0;
+    double phi_min = 0;
+    double phi_max = 0;
+    double d_min = 0;
+    double d_max = 0;
+
+    double d_diff = 0;
+    double phi_diff = 0;
+
+    double A = 0;
+    double B = 0;
+
+    void initAsH(){
+        r = config.dimHRadius;
+        d0 = config.dimHAnchorDistance - r;
+        d_min = config.dimHMinLength;
+        d_max = config.dimHMaxLength;
+
+        A = r*r + (d0+r)*(d0+r);
+        B = 2*r*(d0+r);
+
+        d_diff = d_max - d_min;
+
+        phi_min = linearToAngularAbsolute(d_min);
+        phi_max = linearToAngularAbsolute(d_max);
+        
+        phi_diff = phi_max - phi_min;
+
+        logln("Initializing Dimensions: ");
+        logln("d0:     %fmm", d0);
+        logln("r:      %fmm", r);
+        logln("d_min:  %fmm", d_min);
+        logln("d_max:  %fmm", d_max);
+        logln("d_dif:  %fmm", d_max - d_min);
+        logln("p_min:  %fdeg", R2D * phi_min);
+        logln("p_max:  %fdeg", R2D * phi_max);
+        logln("p_dif:  %fdeg", R2D * (phi_max - phi_min));
+    }
+
+    void sanityCheck(){
+        auto c1 = [=,this](double rel){
+            logln("d = %fmm: phi = %fdeg", rel * d_diff + d_min, (linearToAngularRelative(rel) + phi_min) * R2D);
+        };
+        auto c2 = [=,this](double rel){
+            logln("phi = %fdeg: d = %fmm", (rel * phi_diff + phi_min) * R2D, angularToLinearRelative(rel * phi_diff) * phi_diff + d_min);
+        };
+        logln("Relative Sanity check: ");
+        c1(0); c1(0.5); c1(0.75); c1(1);
+        c2(0); c2(0.5); c2(0.75); c2(1);
+    }
+
+    double angularToLinearAbsolute(double phi){
+        return sqrt(A - B*cos(phi));
+    }
+    double angularToLinearRelative(double phi){
+        const auto res = angularToLinearAbsolute(phi + phi_min);
+        return (res - d_min) / (d_max - d_min);
+    }
+    double linearToAngularAbsolute(double d){
+        return acos( (A - d*d)/B );
+    }
+    double linearToAngularRelative(double d_rel){
+        const auto res = linearToAngularAbsolute(d_rel * (d_max - d_min) + d_min);
+        return res - phi_min;
+    }
+};
+inline SimplePositionCalculator positionCalculatorH;
+
+
 static const char* ControllerModeNames[] = {"Manual", "CustomPosition", "LightSensors", "SunPositioin"};
 
 struct Controller{
@@ -218,13 +290,21 @@ struct Controller{
     uint64_t sunTargetPositonH = 0;
     bool sunPositionUpdated = false;
 
+
+
     uint64_t getPositionFromAzimuth(double azimuth){
         double azimuth_min = config.controlMinAzimuth / 1000.f;
-        double azimuth_len = config.controlLenAzimuth / 1000.f;
+        //double azimuth_len = config.controlLenAzimuth / 1000.f;
+        double azimuth_len = positionCalculatorH.phi_diff * R2D * (config.controlLenAzimuth < 0 ? -1 : 1);
         auto azimuth_delta = getAzimuthDelta(azimuth, azimuth_min, azimuth_len);
 
-        //TODO Measure And Improve
-        return (azimuth_delta / azimuth_len) * config.controlMaxExtensionTime;
+        return positionCalculatorH.angularToLinearRelative(azimuth_delta * D2R) * config.controlMaxExtensionTime;
+    }
+    double getAzimuthFromPosition(uint64_t position){
+        double d_rel = double(position) / config.controlMaxExtensionTime;
+        double res = positionCalculatorH.linearToAngularRelative(d_rel) * R2D;
+
+        return (config.controlLenAzimuth < 0 ? -1 : 1) * res + config.controlMinAzimuth / 1000.f;
     }
 
     bool updateCurrentSunPos(){
@@ -258,6 +338,13 @@ struct Controller{
             targetPositionH_direction = 0;
         }
     }
+    void startTask_MoveToPosition_SunPositionStrategy(){
+        if(sunTargetAltitude < -10){
+            startTask_MoveToPosition(0);
+        }else{
+            startTask_MoveToPosition(sunTargetPositonH);
+        }
+    }
 
     bool updateMotors_MoveToPosition(){
         if(      targetPositionH_direction == 1  && hmotor.position >= targetPositionH){
@@ -273,6 +360,17 @@ struct Controller{
         hmotor.update();
     }
 
+    bool assureCalibration(){
+        if(hmotor.calibrated) {
+            return true;
+        }
+        if(hmotor.state != Motor::State::Calibration){
+            hmotor.setState(Motor::State::Calibration);
+        }
+        updateMotors();
+        return false;
+    }
+
     void loop(){
         readSensors();
         updateCurrentSunPos();
@@ -282,13 +380,17 @@ struct Controller{
         }else if(mode == Mode::CustomPosition){
             updateMotors_MoveToPosition();
         }else if(mode == Mode::LightSensors){
-            hmotor.setDirection(gradient_h);
-        }else if(mode == Mode::SunPosition){
-            if(sunPositionUpdated){
-                startTask_MoveToPosition(sunTargetPositonH);
-                sunPositionUpdated = false;
+            if(assureCalibration()){
+                hmotor.setDirection(gradient_h);
             }
-            updateMotors_MoveToPosition();
+        }else if(mode == Mode::SunPosition){
+            if(assureCalibration()){
+                if(sunPositionUpdated){
+                    startTask_MoveToPosition_SunPositionStrategy();
+                    sunPositionUpdated = false;
+                }
+                updateMotors_MoveToPosition();
+            }
         }
     }
 
@@ -298,6 +400,7 @@ struct Controller{
         int hmotor_state_int = static_cast<int>(hmotor.state);
         logln(" Motor State: %d (%s)", hmotor_state_int, motorStateNames[hmotor_state_int]);
         logln(" Position: %f (%u)", hmotor.getPositionProcentage(), hmotor.position);
+        logln(" Ang Position: %fdeg", positionCalculatorH.linearToAngularRelative(hmotor.getPositionProcentage()) * R2D);
         logln(" Target Position: %u", targetPositionH);
         logln(" Target Position dir: %u", targetPositionH_direction);
         logln(" Calibrated: %d", hmotor.calibrated);

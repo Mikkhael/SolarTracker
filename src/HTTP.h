@@ -74,6 +74,28 @@ inline HTTP http;
 
 struct WSS : public WebSocketsServer{
 
+    bool requestedLogs[WEBSOCKETS_SERVER_CLIENT_MAX] {};
+    int requestedLogsCount = 0;
+
+    void setRequestedLogs(uint8_t num, bool val){
+        if(requestedLogs[num] == val) return;
+        requestedLogsCount += val ? 1 : -1;
+        requestedLogs[num] = val;
+    }
+
+    void broadcastLogs(const char* buf, bool newline){
+        static char newbuf[202 + 14];
+        if(requestedLogsCount == 0){
+            return;
+        }
+        int len = snprintf(newbuf + 14, 202, newline ? "l%s\n" : "l%s", buf);
+        for(int num=0; num<WEBSOCKETS_SERVER_CLIENT_MAX; num++){
+            if(requestedLogs[num]){
+                this->sendTXT(num, newbuf, len, true);
+            }
+        }
+    }
+
     void handle(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 
     WSS() : WebSocketsServer(81){
@@ -83,14 +105,17 @@ struct WSS : public WebSocketsServer{
             switch(type){
                 case WStype_CONNECTED:{
                     logln("[WSS] [%u] Connection from %s.", num, ip.toString().c_str());
+                    setRequestedLogs(num, false);
                     break;
                 }
                 case WStype_DISCONNECTED:{
                     logln("[WSS] [%u] Disconnect.", num);
+                    setRequestedLogs(num, false);
                     break;
                 }
                 case WStype_ERROR:{
                     logln("[WSS] [%u] ERROR from %s: %s", num, ip.toString().c_str(), payload);
+                    setRequestedLogs(num, false);
                     break;
                 }
                 case WStype_TEXT:
@@ -135,6 +160,9 @@ void WSS::handle(uint8_t num, WStype_t type, uint8_t * payload, size_t length){
         String s = String(payload+1, length -1);
         logln("[WSS] Executing remote command '%s'", s);
         commander.parseAndExecute(s);
+    }else if(length == 1 && payload[0] == 'l'){
+        logln("[WSS] Num %u Registering for logs", num);
+        setRequestedLogs(num, true);
     }else if(length == 1 && payload[0] == 'r'){
         String p = "r";
 
@@ -151,6 +179,7 @@ void WSS::handle(uint8_t num, WStype_t type, uint8_t * payload, size_t length){
         (p += '|') += controller.sunTargetAzimuth;
         (p += '|') += controller.sunTargetPositonH;
         (p += '|') += ntc.getEpochTime();
+        (p += '|') += controller.getAzimuthFromPosition(hmotor.position);
 
         this->sendTXT(num, p);
     }else{
