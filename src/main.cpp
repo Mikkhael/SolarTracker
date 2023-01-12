@@ -29,8 +29,12 @@ static bool PROFILE(char id, unsigned long long limit = 100){
 }
 
 
+bool blink = true;
+
 void setup()
 {
+    pinMode(2, OUTPUT);
+    digitalWrite(2, blink);
     Serial.begin(115200);
     delay(100);
     // SerialBT.begin("ESP32SOLAR");
@@ -60,8 +64,20 @@ void setup()
 }
 
 bool firstNtcSet = false;
+
+const int next_blink_interval = 3000;
+int next_blink = next_blink_interval;
+
 void loop()
 {
+
+    if(millis() > next_blink ) {
+        blink = !blink;
+        digitalWrite(2, blink);
+        next_blink = millis() + next_blink_interval;
+    }
+
+
 
     PROFILE('0');
     //config.print();
