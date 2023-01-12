@@ -33,6 +33,8 @@ void setup()
 {
     Serial.begin(115200);
     delay(100);
+    // SerialBT.begin("ESP32SOLAR");
+    // delay(100);
 
     preferanceEntries.load();
 

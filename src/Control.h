@@ -235,7 +235,7 @@ static const char* ControllerModeNames[] = {"Manual", "CustomPosition", "LightSe
 struct Controller{
 
 
-    enum Mode {Manual, CustomPosition, LightSensors, SunPosition} mode = Mode::Manual;
+    enum Mode {Manual, CustomPosition, LightSensors, SunPosition} mode = Mode::SunPosition;
     void setMode(Mode mode){
         this->mode = mode;
         if(mode == Mode::SunPosition){

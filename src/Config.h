@@ -8,7 +8,7 @@ struct PreferanceEntries{
     enum class Type {String, U8, U32, I32};
     static constexpr char Namespace[6] = "solar";
     static constexpr int TrustedAPsCount = 3;
-    static constexpr int MaxEntriesCount = TrustedAPsCount*2 + 20;
+    static constexpr int MaxEntriesCount = TrustedAPsCount*2 + 40;
     String names[MaxEntriesCount];
     Type   types[MaxEntriesCount];
     void*  dests[MaxEntriesCount];

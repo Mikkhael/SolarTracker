@@ -23,7 +23,7 @@ struct Commander{
 
     void execute(String args[MaxArgs]){
         if(args[0] == "help"){
-            logln("HELP!!");
+            logln("https://github.com/Mikkhael/SolarTracker/blob/master/src/Commander.h");
         }
         else if(args[0] == "cfg"){
             config.print();

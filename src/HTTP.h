@@ -84,11 +84,11 @@ struct WSS : public WebSocketsServer{
     }
 
     void broadcastLogs(const char* buf, bool newline){
-        static char newbuf[202 + 14];
+        static char newbuf[logBufSize + 2 + 14];
         if(requestedLogsCount == 0){
             return;
         }
-        int len = snprintf(newbuf + 14, 202, newline ? "l%s\n" : "l%s", buf);
+        int len = snprintf(newbuf + 14, logBufSize + 2, newline ? "l%s\n" : "l%s", buf);
         for(int num=0; num<WEBSOCKETS_SERVER_CLIENT_MAX; num++){
             if(requestedLogs[num]){
                 this->sendTXT(num, newbuf, len, true);
